@@ -1,0 +1,20 @@
+[Unit]
+Description=Jellyfin edge cache prefetch worker
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jellyfin-prefetch
+Group=jellyfin-prefetch
+EnvironmentFile=/etc/jellyfin-edge-cache/worker.env
+ExecStart=/usr/bin/python3 /opt/jellyfin-edge-cache/jellyfin_prefetch_worker.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

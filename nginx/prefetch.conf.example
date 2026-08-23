@@ -1,0 +1,33 @@
+# 仅供本机 worker 使用，不得暴露到公网。
+server {
+    listen 127.0.0.1:8098;
+    server_name _;
+
+    # 不能使用含 $jellyfin_track 的播放日志格式，否则 worker 自己的
+    # 预取请求会被误记成播放器进度，形成自我续期。
+    access_log /var/log/nginx/jellyfin-prefetch.access.log jellyfin_prefetch_log;
+
+    location = /__prefetch_status {
+        default_type application/json;
+        js_content jellyfin_prefetch.status;
+    }
+
+    location ~ ^(?<prefix>/videos/[0-9A-Fa-f-]+/hls[^/]*/main/)(?<segment>[0-9]+)\.(?<extension>ts|m4s)$ {
+        if ($arg_jfhash !~ "^[0-9a-f]{16,64}$") { return 400; }
+
+        proxy_http_version 1.1;
+        proxy_set_header Host 127.0.0.1;
+        proxy_set_header Connection "";
+
+        proxy_cache jellyfin_media;
+        proxy_cache_key "hls|$uri|$http_range";
+        proxy_cache_lock on;
+        proxy_cache_valid 200 206 24h;
+        proxy_ignore_headers Set-Cookie Cache-Control Expires;
+        proxy_hide_header Set-Cookie;
+        proxy_intercept_errors on;
+
+        add_header X-Cache-Status $upstream_cache_status always;
+        proxy_pass http://jellyfin_origin_helper/segment/$arg_jfhash/$segment.$extension;
+    }
+}

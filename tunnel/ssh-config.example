@@ -1,0 +1,15 @@
+# 家庭端 ~/.ssh/config 示例。真实主机名、账号和密钥不要提交。
+Host jellyfin-edge-vps
+    HostName vps.example.com
+    User tunnel
+    Port 443
+    IdentityFile ~/.ssh/jellyfin-edge-tunnel
+    IdentitiesOnly yes
+    ExitOnForwardFailure yes
+    ServerAliveInterval 20
+    ServerAliveCountMax 3
+    RemoteForward 127.0.0.1:18096 127.0.0.1:8096
+    RemoteForward 127.0.0.1:18097 127.0.0.1:18097
+
+# 手动测试：ssh -NT jellyfin-edge-vps
+# 生产环境可用 systemd 管理，不要在命令行中写入秘密。
