@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 
-VERSION = "18.4.0"
+VERSION = "18.4.1"
 
 
 def env_int(name: str, default: int, minimum: int = 1) -> int:
@@ -39,6 +39,7 @@ class Settings:
     ).rstrip("/")
     window: int = env_int("PREFETCH_WINDOW", 300)
     workers: int = env_int("PREFETCH_WORKERS", 4)
+    live_batch: int = env_int("LIVE_BATCH", 32)
     drain_batch: int = env_int("DRAIN_BATCH", 32)
     verify_batch: int = env_int("CACHE_VERIFY_BATCH", 8)
     verify_retries: int = env_int("CACHE_VERIFY_RETRIES", 3)
@@ -79,7 +80,10 @@ def validate_player(
         return None
     if extension not in {"ts", "m4s"}:
         return None
-    if not isinstance(current, int) or current < 0:
+    # Jellyfin briefly reports segment 0 while a resumed session is being
+    # established. Waiting for the first positive segment prevents a stale
+    # 1..window prefetch from blocking the real resume position.
+    if not isinstance(current, int) or current <= 0:
         return None
     if not isinstance(age, (int, float)):
         return None
@@ -209,11 +213,14 @@ def plan_segments(
     if origin["active"]:
         state.drain_cursor = None
         end = min(current + settings.window, target)
-        return [
+        missing = [
             segment
             for segment in range(current + 1, end + 1)
             if segment not in state.done
         ]
+        # Keep LIVE work bounded so a player seek/resume is observed on the
+        # next poll instead of waiting for a stale full-window batch.
+        return missing[: settings.live_batch]
 
     selected: list[int] = []
     selected_set: set[int] = set()

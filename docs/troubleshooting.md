@@ -15,7 +15,7 @@
 5. `proxy_cache_valid`、`inactive`、`max_size` 是否提前淘汰；
 6. 上游是否返回 `Set-Cookie`、`Cache-Control: private/no-store` 或非 200/206。
 
-v18.4 会在首次请求后再次确认 `X-Cache-Status: HIT`。如果日志出现
+v18.4.1 会在首次请求后再次确认 `X-Cache-Status: HIT`。如果日志出现
 `cache_unverified`，检查内部预取 location 是否保留了：
 
 ```nginx

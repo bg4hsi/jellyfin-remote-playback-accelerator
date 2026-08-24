@@ -56,6 +56,36 @@ class WorkerTests(unittest.TestCase):
         }
         self.assertIsNotNone(worker.validate_player(payload, 45, allow_stale=True))
 
+    def test_transient_segment_zero_is_ignored(self):
+        payload = {
+            "player": {
+                "tracked": True,
+                "prefix": "/videos/a/hls1/main/",
+                "current": 0,
+                "extension": "ts",
+                "track_age_ms": 0,
+            }
+        }
+        self.assertIsNone(worker.validate_player(payload, 45))
+
+    def test_live_batch_is_bounded(self):
+        settings = worker.Settings(window=300, live_batch=32)
+        state = worker.WorkerState()
+        player = {
+            "prefix": "/videos/a/hls1/main/",
+            "extension": "ts",
+            "current": 1439,
+        }
+        origin = {
+            "hash": "a" * 32,
+            "extension": "ts",
+            "active": True,
+            "safe_prefetch_max": 1800,
+            "last_generated": 1802,
+        }
+        planned = worker.plan_segments(settings, state, player, origin)
+        self.assertEqual(planned, list(range(1440, 1472)))
+
     def test_new_context_resets_done_segments(self):
         state = worker.WorkerState(
             context=("/videos/old/hls1/main/", "a" * 32, "ts"),
