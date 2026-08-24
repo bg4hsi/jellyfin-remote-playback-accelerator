@@ -15,6 +15,27 @@
 5. `proxy_cache_valid`、`inactive`、`max_size` 是否提前淘汰；
 6. 上游是否返回 `Set-Cookie`、`Cache-Control: private/no-store` 或非 200/206。
 
+v18.4 会在首次请求后再次确认 `X-Cache-Status: HIT`。如果日志出现
+`cache_unverified`，检查内部预取 location 是否保留了：
+
+```nginx
+add_header X-Cache-Status $upstream_cache_status always;
+```
+
+## NAS 转码完成后突然全部 MISS
+
+`active=false` 表示转码文件已经生成完成，不表示播放器已经关闭。不要使用定时任务在
+该状态下执行 `rm -rf`、`find -delete` 或重建 nginx 缓存目录。此类清理会与 nginx
+正在进行的写入发生竞争，常见错误包括：
+
+```text
+chmod() ... failed (2: No such file or directory)
+unlink() ... failed (2: No such file or directory)
+```
+
+缓存容量应交给 `proxy_cache_path` 的 `inactive`、`max_size` 等策略管理。若需要按播放
+Session 精确回收，应等待可靠的 PlaybackStop 事件，不能用 NAS 转码状态代替。
+
 ## 辅助服务返回 404
 
 转码文件可能尚未生成，worker 会在下一轮重试。若状态中的 `last_generated` 已超过目标但仍 404，检查 `TRANSCODE_DIR` 和文件命名是否符合 `<hash><序号>.ts`。

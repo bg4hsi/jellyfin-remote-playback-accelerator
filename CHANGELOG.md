@@ -1,5 +1,16 @@
 # 更新日志
 
+## v18.4
+
+### 缓存落盘校验与完整 DRAIN
+
+- 预取请求返回 200 后，再用 `X-Cache-Status: HIT` 确认缓存已经真正落盘；
+- 缓存对象丢失时自动撤销完成标记，并优先修复播放器前方分片；
+- NAS 转码结束后，DRAIN 不再受实时预取窗口限制，分批推进到 `last_generated`；
+- DRAIN 期间允许播放器状态暂时过期，避免暂停导致剩余同步中断；
+- 新增 `DRAIN_BATCH`、`CACHE_VERIFY_BATCH` 和 `CACHE_VERIFY_RETRIES` 参数；
+- 明确禁止在 NAS 变为 inactive 时直接删除正在使用的 nginx 缓存目录。
+
 ## v18.3
 
 ### Jellyfin 远程播放加速器 Session 管理版
