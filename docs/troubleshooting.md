@@ -36,6 +36,14 @@ unlink() ... failed (2: No such file or directory)
 缓存容量应交给 `proxy_cache_path` 的 `inactive`、`max_size` 等策略管理。若需要按播放
 Session 精确回收，应等待可靠的 PlaybackStop 事件，不能用 NAS 转码状态代替。
 
+磁盘空间不足时也不要执行 `rm -rf /var/cache/nginx/.../*`。使用压力感知 cleaner：
+
+- `JELLYFIN_CACHE_TRIGGER_FREE_GIB` 应高于 nginx `min_free`；
+- 只删除其他旧会话和当前会话中小于 `current` 的分片；
+- `current=0`、状态过期或状态接口失败时跳过本轮；
+- 先运行 `--force --dry-run` 核对计划删除量；
+- 删除后重启 nginx，避免磁盘文件与共享缓存索引不一致。
+
 ## 辅助服务返回 404
 
 转码文件可能尚未生成，worker 会在下一轮重试。若状态中的 `last_generated` 已超过目标但仍 404，检查 `TRANSCODE_DIR` 和文件命名是否符合 `<hash><序号>.ts`。

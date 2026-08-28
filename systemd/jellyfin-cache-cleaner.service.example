@@ -1,0 +1,8 @@
+[Unit]
+Description=Jellyfin pressure-aware cache cleaner
+After=nginx.service jellyfin-prefetch-worker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/jellyfin-edge-cache/cleaner.env
+ExecStart=/opt/jellyfin-edge-cache/jellyfin_cache_cleaner.py

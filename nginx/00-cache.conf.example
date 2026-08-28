@@ -10,6 +10,8 @@ proxy_cache_path /var/cache/nginx/jellyfin-edge-cache
     keys_zone=jellyfin_media:64m
     inactive=24h
     max_size=8g
+    # 应低于 cleaner 的 JELLYFIN_CACHE_TRIGGER_FREE_GIB，确保先按 current 清理。
+    min_free=2g
     use_temp_path=off;
 
 log_format jellyfin_cache '$remote_addr $request status=$status '

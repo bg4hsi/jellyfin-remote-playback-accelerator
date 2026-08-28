@@ -55,7 +55,35 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now jellyfin-prefetch-worker
 ```
 
-## 5. 验证
+## 5. VPS 磁盘压力清理器（可选但推荐）
+
+不要使用“NAS inactive 就删除整个 cache 目录”的脚本。转码结束不等于播放结束，
+而且在 nginx 运行时整目录删除会让磁盘文件和共享缓存索引失去同步。
+
+压力感知 cleaner 只在可用空间低于阈值时工作：删除其他旧会话缓存，以及当前
+会话中 segment 小于 `current` 的已播放分片；保留 `current` 和全部前方分片。
+没有新鲜、有效的播放器位置时不会清理。
+
+```bash
+sudo install -m 0755 scripts/jellyfin_cache_cleaner.py /opt/jellyfin-edge-cache/
+sudo install -m 0644 systemd/jellyfin-cache-cleaner.service.example \
+  /etc/systemd/system/jellyfin-cache-cleaner.service
+sudo install -m 0644 systemd/jellyfin-cache-cleaner.timer.example \
+  /etc/systemd/system/jellyfin-cache-cleaner.timer
+sudo cp .env.example /etc/jellyfin-edge-cache/cleaner.env
+sudo systemctl daemon-reload
+
+# 首次先检查计划，不删除文件
+sudo /opt/jellyfin-edge-cache/jellyfin_cache_cleaner.py --force --dry-run
+
+sudo systemctl enable --now jellyfin-cache-cleaner.timer
+```
+
+`JELLYFIN_CACHE_TRIGGER_FREE_GIB` 必须高于 nginx 的 `min_free`，示例分别为
+3 GiB 和 2 GiB。实际删除后 cleaner 会检查配置并重启一次 nginx，以重置共享
+缓存索引；正常空间检查不会重启 nginx。
+
+## 6. 验证
 
 开始播放后在 VPS 检查：
 
@@ -63,6 +91,7 @@ sudo systemctl enable --now jellyfin-prefetch-worker
 curl http://127.0.0.1:8098/__prefetch_status
 curl http://127.0.0.1:18097/status
 journalctl -u jellyfin-prefetch-worker -f
+journalctl -u jellyfin-cache-cleaner -f
 ```
 
 播放器后续分片应从 `X-Cache-Status: MISS` 逐步变成 `HIT`。如果预取接口返回 200 但播放器仍 MISS，首先比较两个 location 的 cache zone、cache key、URI 和 Range。
