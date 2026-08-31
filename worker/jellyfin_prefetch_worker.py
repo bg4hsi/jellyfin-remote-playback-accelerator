@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 
-VERSION = "18.4.1"
+VERSION = "18.4.2"
 
 
 def env_int(name: str, default: int, minimum: int = 1) -> int:
@@ -37,7 +37,7 @@ class Settings:
     prefetch_base_url: str = os.getenv(
         "PREFETCH_BASE_URL", "http://127.0.0.1:8098"
     ).rstrip("/")
-    window: int = env_int("PREFETCH_WINDOW", 300)
+    window: int = env_int("PREFETCH_WINDOW", 500)
     workers: int = env_int("PREFETCH_WORKERS", 4)
     live_batch: int = env_int("LIVE_BATCH", 32)
     drain_batch: int = env_int("DRAIN_BATCH", 32)
@@ -52,7 +52,6 @@ class Settings:
 class WorkerState:
     context: Optional[tuple[str, str, str]] = None
     done: set[int] = field(default_factory=set)
-    drain_cursor: Optional[int] = None
     mode: str = "idle"
 
 
@@ -126,7 +125,7 @@ def target_range(player: dict[str, Any], origin: dict[str, Any], window: int) ->
     if origin["active"]:
         end = min(player["current"] + window, origin["safe_prefetch_max"])
     else:
-        end = origin["last_generated"]
+        end = min(player["current"] + window, origin["last_generated"])
     return range(start, end + 1) if end >= start else range(0)
 
 
@@ -193,7 +192,6 @@ def sync_context(state: WorkerState, player: dict[str, Any], origin: dict[str, A
     logging.info("session changed old=%s new=%s", state.context, context)
     state.context = context
     state.done.clear()
-    state.drain_cursor = None
     state.mode = "warmup"
     return True
 
@@ -210,41 +208,16 @@ def plan_segments(
     )
     state.done = {segment for segment in state.done if segment > current}
 
-    if origin["active"]:
-        state.drain_cursor = None
-        end = min(current + settings.window, target)
-        missing = [
-            segment
-            for segment in range(current + 1, end + 1)
-            if segment not in state.done
-        ]
-        # Keep LIVE work bounded so a player seek/resume is observed on the
-        # next poll instead of waiting for a stale full-window batch.
-        return missing[: settings.live_batch]
-
-    selected: list[int] = []
-    selected_set: set[int] = set()
-
-    # Always repair the playback-critical window before extending the drain.
-    urgent_end = min(current + settings.window, target)
-    for segment in range(current + 1, urgent_end + 1):
-        if segment not in state.done:
-            selected.append(segment)
-            selected_set.add(segment)
-            if len(selected) >= settings.drain_batch:
-                return selected
-
-    if state.drain_cursor is None:
-        state.drain_cursor = current + 1
-    state.drain_cursor = max(state.drain_cursor, current + 1)
-
-    cursor = state.drain_cursor
-    while cursor <= target and len(selected) < settings.drain_batch:
-        if cursor not in state.done and cursor not in selected_set:
-            selected.append(cursor)
-            selected_set.add(cursor)
-        cursor += 1
-    return selected
+    end = min(current + settings.window, target)
+    missing = [
+        segment
+        for segment in range(current + 1, end + 1)
+        if segment not in state.done
+    ]
+    # Bound every cycle so seeks and resumes are observed quickly. DRAIN uses
+    # the same rolling window and never copies the complete remaining movie.
+    batch = settings.live_batch if origin["active"] else settings.drain_batch
+    return missing[:batch]
 
 
 def verify_near_player(
@@ -268,14 +241,6 @@ def verify_near_player(
             state.done.discard(segment)
             missing += 1
     return missing
-
-
-def advance_drain_cursor(state: WorkerState, current: int, target: int) -> None:
-    if state.drain_cursor is None:
-        state.drain_cursor = current + 1
-    state.drain_cursor = max(state.drain_cursor, current + 1)
-    while state.drain_cursor <= target and state.drain_cursor in state.done:
-        state.drain_cursor += 1
 
 
 def run_cycle(settings: Settings, state: Optional[WorkerState] = None) -> tuple[str, int]:
@@ -305,9 +270,8 @@ def run_cycle(settings: Settings, state: Optional[WorkerState] = None) -> tuple[
         if origin["active"]:
             state.mode = "live"
             return "nothing_to_prefetch", 0
-        advance_drain_cursor(state, player["current"], target)
-        state.mode = "hold" if state.drain_cursor > target else "drain"
-        return state.mode, 0
+        state.mode = "hold"
+        return "hold", 0
 
     successes = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=settings.workers) as executor:
@@ -328,17 +292,15 @@ def run_cycle(settings: Settings, state: Optional[WorkerState] = None) -> tuple[
 
     mode = "live" if origin["active"] else "drain"
     state.mode = mode
-    if mode == "drain":
-        advance_drain_cursor(state, player["current"], target)
     logging.info(
-        "mode=%s player=%s batch=%s-%s success=%s target=%s cursor=%s",
+        "mode=%s player=%s window_end=%s batch=%s-%s success=%s source_end=%s",
         mode,
         player["current"],
+        min(player["current"] + settings.window, target),
         segments[0],
         segments[-1],
         successes,
         target,
-        state.drain_cursor,
     )
     return mode, successes
 

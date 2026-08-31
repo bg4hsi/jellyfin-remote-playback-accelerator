@@ -61,7 +61,7 @@ sudo systemctl enable --now jellyfin-prefetch-worker
 而且在 nginx 运行时整目录删除会让磁盘文件和共享缓存索引失去同步。
 
 压力感知 cleaner 只在可用空间低于阈值时工作：删除其他旧会话缓存，以及当前
-会话中 segment 小于 `current` 的已播放分片；保留 `current` 和全部前方分片。
+会话中窗口外的分片；默认只保留 `[current, current+500]`。
 没有新鲜、有效的播放器位置时不会清理。
 
 ```bash

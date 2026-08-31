@@ -39,7 +39,7 @@ Session 精确回收，应等待可靠的 PlaybackStop 事件，不能用 NAS �
 磁盘空间不足时也不要执行 `rm -rf /var/cache/nginx/.../*`。使用压力感知 cleaner：
 
 - `JELLYFIN_CACHE_TRIGGER_FREE_GIB` 应高于 nginx `min_free`；
-- 只删除其他旧会话和当前会话中小于 `current` 的分片；
+- 默认只保留当前会话 `[current, current+500]`，删除旧会话和窗口外分片；
 - `current=0`、状态过期或状态接口失败时跳过本轮；
 - 先运行 `--force --dry-run` 核对计划删除量；
 - 删除后重启 nginx，避免磁盘文件与共享缓存索引不一致。

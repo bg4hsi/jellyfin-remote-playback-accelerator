@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Optional
 
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 CACHE_DIR = os.getenv(
     "JELLYFIN_CACHE_DIR", "/var/cache/nginx/jellyfin-edge-cache"
 )
@@ -31,6 +31,7 @@ LOCK_PATH = os.getenv(
 )
 TRIGGER_FREE_GIB = float(os.getenv("JELLYFIN_CACHE_TRIGGER_FREE_GIB", "3"))
 MAX_TRACK_AGE_MS = int(os.getenv("JELLYFIN_CACHE_MAX_TRACK_AGE_MS", "60000"))
+KEEP_AHEAD = int(os.getenv("JELLYFIN_CACHE_KEEP_AHEAD", "500"))
 HEADER_BYTES = 16384
 
 PREFIX_RE = re.compile(r"^/videos/[^/]+/hls[^/]*/main/$")
@@ -107,8 +108,14 @@ def parse_cache_key(path: str) -> Optional[CacheKey]:
     )
 
 
-def should_remove(key: CacheKey, player: Player) -> bool:
-    return key.prefix != player.prefix or key.segment < player.current
+def should_remove(
+    key: CacheKey, player: Player, keep_ahead: int = KEEP_AHEAD
+) -> bool:
+    return (
+        key.prefix != player.prefix
+        or key.segment < player.current
+        or key.segment > player.current + keep_ahead
+    )
 
 
 def prune(player: Player, dry_run: bool) -> tuple[int, int, int, int]:
@@ -195,6 +202,7 @@ def main() -> int:
         action = "DRY_RUN" if args.dry_run else "PRUNE"
         log(
             f"{action} current={player.current} prefix={player.prefix} "
+            f"keep_end={player.current + KEEP_AHEAD} "
             f"removed_files={removed_files} removed_gib={removed_bytes / 1024**3:.2f} "
             f"kept_files={kept_files} unknown_files={unknown_files} "
             f"free_before_gib={free_before / 1024**3:.2f}"

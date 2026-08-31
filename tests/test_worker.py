@@ -20,12 +20,10 @@ class WorkerTests(unittest.TestCase):
             list(worker.target_range(player, origin, 100)), [11, 12, 13, 14, 15]
         )
 
-    def test_finished_job_drains_to_last_generated(self):
+    def test_finished_job_uses_same_rolling_window(self):
         player = {"current": 10}
         origin = {"active": False, "safe_prefetch_max": 15, "last_generated": 20}
-        self.assertEqual(
-            list(worker.target_range(player, origin, 3)), list(range(11, 21))
-        )
+        self.assertEqual(list(worker.target_range(player, origin, 3)), [11, 12, 13])
 
     def test_window_caps_live_target(self):
         player = {"current": 10}
@@ -90,7 +88,6 @@ class WorkerTests(unittest.TestCase):
         state = worker.WorkerState(
             context=("/videos/old/hls1/main/", "a" * 32, "ts"),
             done={11, 12},
-            drain_cursor=13,
         )
         player = {
             "prefix": "/videos/new/hls1/main/",
@@ -106,11 +103,10 @@ class WorkerTests(unittest.TestCase):
         }
         self.assertTrue(worker.sync_context(state, player, origin))
         self.assertEqual(state.done, set())
-        self.assertIsNone(state.drain_cursor)
 
-    def test_drain_batch_advances_past_verified_segments(self):
-        settings = worker.Settings(window=3, drain_batch=2)
-        state = worker.WorkerState(done={11, 12, 13}, drain_cursor=11)
+    def test_drain_batch_advances_within_window(self):
+        settings = worker.Settings(window=5, drain_batch=2)
+        state = worker.WorkerState(done={11, 12, 13})
         player = {
             "prefix": "/videos/a/hls1/main/",
             "extension": "ts",
@@ -127,7 +123,7 @@ class WorkerTests(unittest.TestCase):
 
     def test_drain_repairs_missing_urgent_segment_first(self):
         settings = worker.Settings(window=3, drain_batch=2)
-        state = worker.WorkerState(done={11, 13, 14, 15}, drain_cursor=16)
+        state = worker.WorkerState(done={11, 13, 14, 15})
         player = {
             "prefix": "/videos/a/hls1/main/",
             "extension": "ts",
@@ -140,7 +136,27 @@ class WorkerTests(unittest.TestCase):
             "safe_prefetch_max": 15,
             "last_generated": 20,
         }
-        self.assertEqual(worker.plan_segments(settings, state, player, origin), [12, 16])
+        self.assertEqual(worker.plan_segments(settings, state, player, origin), [12])
+
+    def test_drain_never_plans_beyond_current_plus_window(self):
+        settings = worker.Settings(window=500, drain_batch=600)
+        state = worker.WorkerState()
+        player = {
+            "prefix": "/videos/a/hls1/main/",
+            "extension": "ts",
+            "current": 1000,
+        }
+        origin = {
+            "hash": "a" * 32,
+            "extension": "ts",
+            "active": False,
+            "safe_prefetch_max": 2400,
+            "last_generated": 2414,
+        }
+        planned = worker.plan_segments(settings, state, player, origin)
+        self.assertEqual(planned[0], 1001)
+        self.assertEqual(planned[-1], 1500)
+        self.assertEqual(len(planned), 500)
 
 
 if __name__ == "__main__":

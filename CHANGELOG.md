@@ -1,5 +1,15 @@
 # 更新日志
 
+## v18.4.2 / 缓存清理器 v2.1.0
+
+### current+500 滚动窗口
+
+- LIVE 与 DRAIN 统一只预取到 `current + PREFETCH_WINDOW`，默认窗口为 500；
+- NAS 转码结束后不再把 `last_generated` 之前的全部剩余分片搬入 VPS；
+- 窗口完整时进入 HOLD，播放器前进后只补充窗口尾部；
+- 磁盘压力清理器保留 `[current, current+500]`，同时删除旧会话、已播放分片和窗口外远端分片；
+- 新增 `JELLYFIN_CACHE_KEEP_AHEAD`，默认值为 500。
+
 ## 缓存清理器 v2.0.0
 
 ### 磁盘压力下按播放位置清理

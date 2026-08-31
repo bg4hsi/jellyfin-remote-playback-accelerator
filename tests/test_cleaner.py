@@ -27,6 +27,14 @@ class CacheCleanerPolicyTests(unittest.TestCase):
         key = cleaner.CacheKey(self.player.prefix, 65, "ts")
         self.assertFalse(cleaner.should_remove(key, self.player))
 
+    def test_keeps_window_end(self):
+        key = cleaner.CacheKey(self.player.prefix, 564, "ts")
+        self.assertFalse(cleaner.should_remove(key, self.player, keep_ahead=500))
+
+    def test_removes_beyond_window(self):
+        key = cleaner.CacheKey(self.player.prefix, 565, "ts")
+        self.assertTrue(cleaner.should_remove(key, self.player, keep_ahead=500))
+
     def test_removes_consumed_segment(self):
         key = cleaner.CacheKey(self.player.prefix, 63, "ts")
         self.assertTrue(cleaner.should_remove(key, self.player))
