@@ -1,0 +1,11 @@
+{
+  "nas_status_url": "http://192.0.2.10:18097/prefetch",
+  "proxy_port": 10022,
+  "interval_seconds": 30,
+  "failure_threshold": 3,
+  "min_pending_bytes": 262144,
+  "min_drain_bytes_per_second": 524288,
+  "cooldown_seconds": 600,
+  "max_restarts_per_hour": 2,
+  "nas_timeout_seconds": 3
+}

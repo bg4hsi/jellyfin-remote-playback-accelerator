@@ -48,6 +48,13 @@ Session 精确回收，应等待可靠的 PlaybackStop 事件，不能用 NAS �
 
 转码文件可能尚未生成，worker 会在下一轮重试。若状态中的 `last_generated` 已超过目标但仍 404，检查 `TRANSCODE_DIR` 和文件命名是否符合 `<hash><序号>.ts`。
 
+## 同一 443 下其他服务快，Jellyfin 预取慢
+
+共用端口不代表共用 TCP 连接。先从 OpenWrt 直连 NAS 的 `/prefetch` 和一个已生成分片，
+再与 VPS 的 `18097` 对照。NAS 局域网快、VPS `18097` 慢，并且预取 SSH 到 Xray 的
+本机连接持续积压时，可使用可选看门狗。不要用“流量低”作为唯一重连条件，否则暂停和
+HOLD 会被误判；也不要因单次超时重启整个 Xray、DSM、Drive 或 nginx。
+
 ## 辅助服务返回 409
 
 通常表示请求的 hash 已不是最新转码任务。停止旧 worker，确认玩家状态和家庭状态属于同一次播放。

@@ -83,7 +83,49 @@ sudo systemctl enable --now jellyfin-cache-cleaner.timer
 3 GiB 和 2 GiB。实际删除后 cleaner 会检查配置并重启一次 nginx，以重置共享
 缓存索引；正常空间检查不会重启 nginx。
 
-## 6. 验证
+## 6. OpenWrt 预取隧道自动恢复（可选）
+
+此组件只适用于已有的 OpenWrt 分离隧道部署，不直接适用于第 3 节的一条 SSH 承载两个转发的示例。
+需要 `python3`、`curl`、带 TCP 详情和进程信息的 `ss`、`ubus`、`logger`，以及：
+
+- procd 服务名为 `jellyfin-prefetch-tunnel`，该进程只创建一个 `18097` 远端转发；
+- SSH 连接到本机 Xray，默认地址 `127.0.0.1:10022`；
+- NAS 的局域网 `/prefetch` 接口返回顶层布尔字段 `active`。通用 `/status` 的 `job` 嵌套格式需另作适配。
+
+看门狗不通过远程命令探测，也不要求扩大隧道密钥权限；只观察预取 SSH 到 Xray 的本机 TCP 背压。
+首次安装时指定 NAS 局域网状态接口：
+
+```sh
+cd tunnel
+NAS_STATUS_URL=http://NAS-LAN-IP:18097/prefetch \
+    ./install-openwrt-prefetch-watchdog.sh
+```
+
+默认必须连续 3 个 30 秒窗口同时出现至少 256 KiB 积压、消费速度低于 512 KiB/s，
+再确认 NAS 状态接口正常，才仅重连 `jellyfin-prefetch-tunnel`。冷却期为 10 分钟，
+每小时最多重连 2 次。暂停或空闲没有积压时，不会仅因流量为零而重连。
+
+验证：
+
+```sh
+/usr/bin/python3 /usr/bin/jellyfin-prefetch-watchdog.py \
+    --config /etc/jellyfin-prefetch-watchdog.json --once
+/etc/init.d/jellyfin-prefetch-watchdog status
+logread -e jellyfin-prefetch-watchdog
+```
+
+停用自动恢复（不影响现有预取隧道）：
+
+```sh
+/etc/init.d/jellyfin-prefetch-watchdog stop
+/etc/init.d/jellyfin-prefetch-watchdog disable
+```
+
+自动恢复只缓解有本机 TCP 背压证据的单条连接退化；没有积压的远端故障、NAS 状态异常、
+SSH 进程退出或不支持的遥测格式不会触发重连。原隧道进程退出仍交给 procd 处理。
+它不能替代持续丢包、MTU、拥塞或服务端异常的诊断，不保证吞吐速度，也不自动调整 TCP 算法。
+
+## 7. 验证
 
 开始播放后在 VPS 检查：
 
