@@ -1,5 +1,11 @@
 # 更新日志
 
+## 2026-09-13 / 群晖旧版检测器 FFmpeg 8 迁移
+
+- 增加 `scripts/fix_synology_ffmpeg8.py`，修复旧版检测器仍固定识别 FFmpeg 7、导致 FFmpeg 8 HLS 任务被忽略的问题；
+- 迁移前校验并备份原脚本，只重启检测器，启动失败时尝试回滚；
+- 补充[迁移说明和现场验证](docs/synology-ffmpeg8-migration.md)，通用目录扫描源站无需此迁移。
+
 ## OpenWrt 预取隧道看门狗 v1.0.0
 
 - 被动识别预取 SSH → Xray 本机连接的持续积压和低速消费；
