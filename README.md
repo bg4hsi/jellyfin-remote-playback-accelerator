@@ -1,5 +1,15 @@
 # Jellyfin 远程播放加速器
 
+[中文介绍](#中文介绍) | [English introduction](#english-introduction)
+
+## 中文介绍
+
+面向家庭 Jellyfin 用户的远程播放优化系统，通过 VPS 中转缓存、TCP 443 反向隧道和 HLS 分片预取，缓解家庭宽带上行波动对远程播放的影响。系统跟踪转码会话与分片生成进度，并在 NAS 转码完成后继续同步已生成的分片，适用于家庭 NAS 远程观看场景。
+
+## English introduction
+
+A remote playback optimization system for home Jellyfin servers. It combines a VPS cache, a reverse tunnel over TCP port 443, and HLS segment prefetching to reduce the impact of unstable home upload bandwidth on remote streaming. It tracks transcoding sessions and segment generation, and continues transferring generated segments after NAS transcoding finishes. It is intended for remote access to a home NAS; results depend on the network path.
+
 一个面向家庭 Jellyfin 用户的远程播放优化系统。
 
 本项目通过 VPS 公网节点、反向隧道和 HLS 分片预取机制，将家庭 NAS 生成的视频分片提前同步到 VPS，减少家庭宽带公网持续上传压力，提高 Jellyfin 远程播放的稳定性。
@@ -296,3 +306,5 @@ If you find this repository useful, you can optionally support its maintainer, *
 </p>
 
 使用支付宝扫一扫，或点击图片查看原图。感谢你的支持！
+
+Scan with Alipay, or click the image to view the original. Thank you for your support!
